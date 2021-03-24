@@ -17,7 +17,7 @@ def worker(mq, m):
 if __name__ == "__main__":
     try:
         mq = sysv_ipc.MessageQueue(key, sysv_ipc.IPC_CREX)
-    except ExistentialError:
+    except:
         print("Message queue", key, "already exsits, terminating.")
         sys.exit(1)
 

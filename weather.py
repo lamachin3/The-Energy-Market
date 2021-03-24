@@ -15,4 +15,5 @@ class Weather:
             t1 = time.time()
             if t1-t0 > 10:
                 self.temperature.value = random.randint(-20, 40)
+                print("Generated temperature : {}".format(self.temperature.value))
                 t0 = t1
