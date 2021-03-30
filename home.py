@@ -9,31 +9,37 @@ key_share = 321 #clé de la messager queue du partage
 
 class Home(Process):
 
-    cons, prod, policy, temperature = int, int, int, None
-    #accounting = {"sold": [], "bought": []}
+    cons, prod, policy = int, int, int
+    stop = None
+    temperature = None
+    barrier = None
+    mq_market, mq_share = None, None
+    recap = dict() #"day_n : [gap_debut, gap_share]" 
 
-    def __init__(self, policy, shrdMem):
+    def __init__(self, policy, shrdMem, barrier, stop):
         super().__init__()
         self.policy = policy
         self.temperature = shrdMem
-
-    def run(self):
+        self.barrier = barrier
+        self.stop = stop
         try:
-            mq_market = sysv_ipc.MessageQueue(key_market) #Création d'une message queue pour communiquer avec le market
+            self.mq_market = sysv_ipc.MessageQueue(key_market) #Connexion à une message queue pour communiquer avec le market
+            self.mq_share = sysv_ipc.MessageQueue(key_share) #Connexio à une message queue pour communiquer avec les autres maisons
         except:
-            print("Cannot connect to message queue", key_market, ", terminating.")
+            print("Cannot connect to message queue, terminating.")
             exit(1)
         
-        mq_share = sysv_ipc.MessageQueue(key_share) #Création d'une message queue pour communiquer avec les autres maisons
 
-        t0 = time.time()
-        while True:
-            t1 = time.time()
-            if t1-t0 > 10:
-                self.getCons()
-                self.getProd()
-                self.buy_or_sell(mq_market, self.share(mq_share))
-                t0 = t1  
+    def run(self):
+        self.barrier.wait()
+        while not self.stop.value:
+            self.getCons()
+            self.getProd()
+            self.buy_or_sell(self.mq_market, self.share(self.mq_share))
+            self.barrier.wait()
+        for i in self.recap:
+            print("Day_" + str(repr(i)), repr(self.recap[i][0]).rjust(4), repr(self.recap[i][1]).rjust(4), end='\t\t')
+        print("\n")
 
     #calcul de la consommation de la maison
     def getCons(self): 
@@ -60,7 +66,6 @@ class Home(Process):
     #partage des ressources avec les autres maisons
     def share(self, mq_share):
         gap = self.prod - self.cons #calcul du reste de l'energie après consommation
-        print("gap", gap, "\tpid", os.getpid())
         if self.policy == 2 and gap > 0:
             msg = "0_" + str(os.getpid()) # pas de partage
         else:
@@ -70,5 +75,6 @@ class Home(Process):
         mq_share.send(msg, type=self.policy) #envoi du message de type = policy
         msg_rcvd = mq_share.receive(type=os.getpid())[0].decode() #réception du message de type = PID
         if self.policy == 2 and gap > 0:
-            msg_rcvd = gap #réatribution de l'écart non mis sur le partage 
+            msg_rcvd = gap #réatribution de l'écart non mis sur le partage
+        self.recap[len(self.recap) + 1]=(gap, int(msg_rcvd))
         return int(msg_rcvd)
