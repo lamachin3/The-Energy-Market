@@ -37,9 +37,13 @@ class Market(Process):
     def handler(self, sig, frame):
         if sig == signal.SIGUSR1:
             self.external_factors["storm"] = 1
+            with open('storm.txt','r') as f:
+                print(f.read())
         
         if sig == signal.SIGUSR2:
             self.external_factors["fuel_shortage"] = 1
+            with open('fuel.txt','r') as f:
+                print(f.read())
 
     def run(self):
         with concurrent.futures.ThreadPoolExecutor(max_workers = 4) as executor:
@@ -64,12 +68,12 @@ class Market(Process):
     def sell_energy(self, qty):
         self.internal_factors["energy_balance"] -= qty
         self.accounting -= self.price * qty
-        #print("selling {} to house".format(qty))
+        print("selling {} to house".format(qty))
 
     def buy_energy(self, qty):
         self.internal_factors["energy_balance"] += qty
         self.accounting += self.price * qty
-        #print("buying {} from house".format(qty))
+        print("buying {} from house".format(qty))
 
     def set_price(self):
         self.internal_factors["temperature"]  = self.temperature.value
