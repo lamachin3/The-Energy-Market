@@ -50,7 +50,7 @@ class Market(Process):
                 print(f.read())
 
     def run(self):
-        with concurrent.futures.ThreadPoolExecutor(max_workers = 4) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers = 3) as executor:
             while not self.stop.value:
                 msg, t = None, None
                 while msg == None and not self.stop.value:
