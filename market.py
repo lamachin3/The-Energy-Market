@@ -1,4 +1,4 @@
-from multiprocessing import Process
+from multiprocessing import Process, Value
 import concurrent.futures
 import sysv_ipc, signal
 import sys, os, time, random
@@ -7,7 +7,6 @@ key = 123
 
 class Market(Process):
     temperature = None
-    external_proc = None
     barrier = None
     stop = None
     accounting = float
@@ -15,6 +14,7 @@ class Market(Process):
     external_factors = {"storm": 0, "fuel_shortage": 0}
     price = int
     mq = None
+    new_day = Value('i', 0)
 
     def __init__(self, shrdMem, barrier, stop):
         super().__init__()
@@ -22,11 +22,15 @@ class Market(Process):
         self.barrier = barrier
         self.stop = stop
         self.price = 0.145
+        self.prices_hist = []
         self.accounting = 0
+
+        signal.signal(signal.SIGRTMIN, self.handler)
         signal.signal(signal.SIGUSR1, self.handler)
         signal.signal(signal.SIGUSR2, self.handler)
-        self.external_proc = Process(target=self.external_worker, args=())
-        self.external_proc.start()
+
+        external_proc = Process(target=self.external_worker, args=(self.new_day,))
+        external_proc.start()
 
         try:
             self.mq = sysv_ipc.MessageQueue(key, sysv_ipc.IPC_CREX)
@@ -56,51 +60,63 @@ class Market(Process):
                         msg = None
                 if self.stop.value:
                     break
+                data = int(msg.decode())
 
-                self.set_price()
+                if self.new_day.value == 1:
+                    self.set_price()
+                    self.new_day.value = 0
+
                 if t == 1:
-                    executor.submit(self.buy_energy, int(msg.decode()))
+                    executor.submit(self.buy_energy, data)
                 elif t == 2:
-                    executor.submit(self.sell_energy, int(msg.decode()))
-                
+                    executor.submit(self.sell_energy, data)
+
+        while self.mq.current_messages != 0:
+            pass 
         self.mq.remove()
+        print("Market prices history:", self.prices_hist)
     
     def sell_energy(self, qty):
         self.internal_factors["energy_balance"] -= qty
         self.accounting -= self.price * qty
-        print("selling {} to house".format(qty))
+        print("Selling {} to house for {}€ - current price: {}".format(qty, round(self.price * qty, 3), round(self.price, 3)))
 
     def buy_energy(self, qty):
         self.internal_factors["energy_balance"] += qty
         self.accounting += self.price * qty
-        print("buying {} from house".format(qty))
+        print("Buying {} from house for {}€ - current price: {}".format(qty, round(self.price * qty, 3), round(self.price, 3)))
 
     def set_price(self):
         self.internal_factors["temperature"]  = self.temperature.value
         gamma = 0.99
-        alpha = [-0.001, 0.002]
-        beta = [0.02, 0.01]
+        alpha = [-0.0001, -0.001]
+        beta = [0.002, 0.002]
         self.price = self.price * gamma
 
         for key in self.internal_factors:
             index = list(self.internal_factors).index(key)
             self.price += alpha[index] * self.internal_factors[key]
-
+        
         for key in self.external_factors:
             index = list(self.external_factors).index(key)
             self.price += beta[index] * self.external_factors[key]
+
+        self.prices_hist.append(round(self.price, 2)
+        self.internal_factors["energy_balance"] = 0
             
         
-    def external_worker(self):
+    def external_worker(self, new_day):
         self.barrier.wait()
-        p1, p2 =  0.9, 0.95
+        p1, p2 =  0.95, 0.95
         while not self.stop.value:
+            new_day.value = 1
+
             for i in self.external_factors:
                 self.external_factors[i] = 0
 
             if random.random() > p1:
                 os.kill(os.getppid(), signal.SIGUSR1)
-                p1 = 0.9
+                p1 = 0.95
             else:
                 p1 = p1**2
 

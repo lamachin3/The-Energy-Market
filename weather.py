@@ -9,7 +9,6 @@ class Weather:
     stop = None
 
     def __init__(self, barrier, stop):
-        self.temperature.value = 20
         self.barrier = barrier
         self.stop = stop
 

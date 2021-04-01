@@ -10,6 +10,7 @@ key_share = 321 #clé de la messager queue du partage
 class Home(Process):
 
     cons, prod, policy = int, int, int
+    balance = 0
     stop = None
     temperature = None
     barrier = None
@@ -37,20 +38,19 @@ class Home(Process):
             self.getProd()
             self.buy_or_sell(self.mq_market, self.share(self.mq_share))
             self.barrier.wait()
+        
         for i in self.recap:
             print("Day_" + str(repr(i)), repr(self.recap[i][0]).rjust(4), repr(self.recap[i][1]).rjust(4), end='\t\t')
         print("\n")
 
     #calcul de la consommation de la maison
     def getCons(self): 
-        #self.cons = round(100 + ((self.temperature.value - 20)/2)**2 + random.randint(-20, 20))
-        self.cons = random.randint(0, 200) 
+        self.cons = round(10 + ((self.temperature.value - 20)/4)**2 + random.randint(-5, 5))
         #print("Conso : {} - {}".format(self.cons, os.getpid()))
 
     #calcul de la production de la maison 
     def getProd(self):
-        #self.prod = round(8*self.temperature.value + random.randint(-50, 50))
-        self.prod = random.randint(0, 100)
+        self.prod = round(2*self.temperature.value + random.randint(-5, 5))
         if self.prod < 0:
             self.prod = 0
         #print("Prod : {} - {}".format(self.prod, os.getpid()))
