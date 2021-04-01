@@ -101,7 +101,7 @@ class Market(Process):
             index = list(self.external_factors).index(key)
             self.price += beta[index] * self.external_factors[key]
 
-        self.prices_hist.append(round(self.price, 2)
+        self.prices_hist.append(round(self.price, 2))
         self.internal_factors["energy_balance"] = 0
             
         
