@@ -9,6 +9,7 @@ from multiprocessing import Value
 # ipcrm -Q 123; ipcrm -Q 321; python main.py
 
 if __name__ == "__main__":
+    #définition des arguments dans la ligne de commande
     parser = argparse.ArgumentParser(usage='main.py -n NB_HOUSES -d NB_DAYS -t TEMPERATURE -p NB_POLICY_1 NB_POLICY_2 NB_POLICY_3')
     parser.add_argument('-n', "--houses",  type=int, metavar='NB_HOUSES', help="number of houses to create", required=True)
     parser.add_argument('-d', "--days", type=int, metavar='NB_DAYS', help="number of days to perform", required=True)
@@ -16,6 +17,7 @@ if __name__ == "__main__":
     parser.add_argument('-p', "--policies", nargs="+", help="number of houses for each policy")
     args = parser.parse_args()
 
+    #attribution des arguments aux variables
     nb_days = int(args.days)
     nb_houses = int(args.houses)
     temperature = int(args.temperature)
@@ -30,7 +32,9 @@ if __name__ == "__main__":
 
 
     stop = Value('b', False)
-    barrier = multiprocessing.Barrier(4 + nb_houses) # 1 main + 1 weather + 1 market + 1 sharing platform + N home
+    barrier = multiprocessing.Barrier(4 + nb_houses) # 1 main + 1 weather + 1 external + 1 sharing platform + N home
+    
+    #Création des threads/processes
     weather = Weather(barrier, stop)
     shrd_temp = weather.getSharedMem()
     shrd_temp.value = temperature
@@ -61,25 +65,24 @@ if __name__ == "__main__":
     for home in homes:
         home.start()
 
+    #Début des journée
     print("\n--- Journée 1 ---\n")
     barrier.wait()
-    t0 = time.time()
-    cpt = 1 
-    while True and cpt<nb_days:
+    t0 = time.time() 
+    for cpt in range(1,nb_days): #itération sur le nombre de journée voulu
         t1 = time.time()           
-        if t1-t0 > 3:
+        if t1-t0 > 3: #1 journée toutes les 3s
             print("\n--- Journée {} ---\n".format(cpt + 1))
             barrier.wait()
-            #print(barrier.n_waiting)
-            cpt += 1
             t0 = t1
 
-    while barrier.n_waiting < barrier.parties - 1:
+    while barrier.n_waiting < barrier.parties - 1: #attend que tout le monde ait fini sa journée
         pass
     print("\n")
     stop.value = True
-    barrier.wait()
+    barrier.wait() #fin des journées
 
+    #fermeture des processes/threads
     for home in homes:
         home.join()
 

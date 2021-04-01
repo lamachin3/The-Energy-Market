@@ -25,11 +25,10 @@ class Market(Process):
         self.prices_hist = []
         self.accounting = 0
 
-        signal.signal(signal.SIGRTMIN, self.handler)
         signal.signal(signal.SIGUSR1, self.handler)
         signal.signal(signal.SIGUSR2, self.handler)
 
-        external_proc = Process(target=self.external_worker, args=(self.new_day,))
+        external_proc = Process(target=self.external_worker, args=(self.new_day,)) #process fils external
         external_proc.start()
 
         try:
@@ -53,23 +52,23 @@ class Market(Process):
         with concurrent.futures.ThreadPoolExecutor(max_workers = 3) as executor:
             while not self.stop.value:
                 msg, t = None, None
-                while msg == None and not self.stop.value:
+                while msg == None and not self.stop.value:  #attend de recevoir un message dans la message
                     try:
-                        msg, t = self.mq.receive(block=False)
+                        msg, t = self.mq.receive(block=False) #non bloquant car on veut détecter si self.stop.value passe à TRUE
                     except:
                         msg = None
                 if self.stop.value:
                     break
                 data = int(msg.decode())
 
-                if self.new_day.value == 1:
+                if self.new_day.value == 1: #nouvelle journée
                     self.set_price()
                     self.new_day.value = 0
 
                 if t == 1:
-                    executor.submit(self.buy_energy, data)
+                    executor.submit(self.buy_energy, data) #thread pour que le marché achète de l'energie
                 elif t == 2:
-                    executor.submit(self.sell_energy, data)
+                    executor.submit(self.sell_energy, data) #thread pour que le marché vende de l'energie
 
         while self.mq.current_messages != 0:
             pass 
